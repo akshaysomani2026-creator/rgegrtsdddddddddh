@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080914"><title>XO Arena // Overdrive — Gomoku Mode</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="scanlines"></div><div class="orb orb1"></div><div class="orb orb2"></div>
+<main class="shell">
+<header><div class="brand"><b>✕</b> XO<span>/</span>ARENA <small>OVERDRIVE // GOMOKU</small></div><div class="live"><i></i> SYSTEM ONLINE</div></header>
+<section class="hero"><p>TACTICAL GRID COMBAT <span>///</span> SEASON 01</p><h1>ENTER THE <em>ARENA</em></h1><div>Five in a row. Bigger grid, bigger stakes.</div></section>
+<section class="layout">
+<aside class="panel controls"><h3>◈ MATCH CONFIG <small>01</small></h3>
+<label>GAME MODE</label><select id="mode"><option value="pvp">LOCAL DUEL — 2 PLAYERS</option><option value="cpu">VS THE MACHINE</option></select>
+<label>CPU THREAT LEVEL</label><select id="difficulty"><option value="easy">ROOKIE</option><option value="medium" selected>VETERAN</option><option value="hard">NIGHTMARE</option></select>
+<div class="rule"></div>
+<div class="stat"><span>ROUND TIMER</span><b id="timer">00:00</b></div>
+<div class="stat" id="streakStat"><span>MOVE STREAK</span><b id="streak">× 0</b></div>
+<div class="stat"><span>WIN CONDITION</span><b>5 IN A ROW</b></div>
+<button class="btn ghost" id="soundBtn">♫ SOUND: ON</button>
+<p class="tip">Own the center. Build open lines. Deny your rival before they fork you.</p>
+</aside>
+<section class="panel arena" id="arenaPanel">
+<div class="arena-top"><span><i class="pulse"></i><b id="status">AWAITING FIRST STRIKE</b></span><span>ROUND <b id="round">01</b></span></div>
+<div class="players"><div class="player active" id="px"><b class="sym x">X</b><div><small>PLAYER 01</small><strong id="nameX">NEON</strong></div></div><div class="vs">VS</div><div class="player" id="po"><b class="sym o">O</b><div><small id="oLabel">PLAYER 02</small><strong id="nameO">PHANTOM</strong></div></div></div>
+<div class="board-wrap"><div id="board" class="board" aria-label="8 by 8 tic tac toe board"></div></div>
+<div class="arena-bottom"><span>8 × 8 GRID</span><span id="moves">MOVES: 00 / 64</span><span>⚡ LIVE MATCH</span></div>
+</section>
+<aside class="panel scores"><h3>▤ SCORE MATRIX <small>02</small></h3>
+<div class="score xscore"><span>X</span><small>NEON</small><b id="sx">0</b><i>WINS</i></div>
+<div class="score oscore"><span>O</span><small id="soName">PHANTOM</small><b id="so">0</b><i>WINS</i></div>
+<div class="score draw"><span>≋</span><small>DRAWS</small><b id="sd">0</b><i>STALEMATES</i></div>
+<div class="rule"></div>
+<div class="stat"><span>DOMINANCE</span><b id="dominance">0 — 0</b></div>
+<div class="stat"><span>BEST STREAK</span><b id="bestStreak">0</b></div>
+<div class="meter"><i id="mx"></i><i id="mo"></i></div>
+<button class="btn primary" id="newRound">↻ &nbsp; NEW ROUND</button>
+<button class="btn ghost" id="reset">⌫ &nbsp; RESET SCORES</button>
+</aside></section>
+<footer><span>XO/ARENA <b>OVERDRIVE</b></span><span>BUILT FOR THE CLUTCH.</span><span>NO LAG. NO EXCUSES.</span></footer>
+</main>
+<div class="toast" id="toast"></div>
+<div class="overlay" id="overlay"><div class="victory"><small>MATCH RESULT // CONFIRMED</small><h2 id="result">X TAKES THE ROUND</h2><p id="resultText">Grid domination.</p><button class="btn primary" id="next">RUN IT BACK ↗</button></div></div>
+<script src="script.js"></script>
+</body></html>
