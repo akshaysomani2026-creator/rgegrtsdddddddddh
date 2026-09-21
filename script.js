@@ -21,6 +21,7 @@ const boardEl=document.getElementById('board'), statusEl=document.getElementById
 const modeEl=document.getElementById('mode'), diffEl=document.getElementById('difficulty');
 const overlay=document.getElementById('overlay'), toast=document.getElementById('toast');
 const arenaPanel=document.getElementById('arenaPanel');
+const musicBtn=document.getElementById('musicBtn'), soundBtn=document.getElementById('soundBtn');
 
 let board=Array(CELLS).fill(''), turn='X', over=false, round=1;
 let scores={X:0,O:0,D:0}, moveCount=0, streak=0, bestStreak=0, sound=true, startedAt=Date.now(), timerId;
@@ -33,14 +34,94 @@ function persist(){
   try{ localStorage.setItem('xoArenaState', JSON.stringify({scores,bestStreak})); }catch(e){}
 }
 
+/* ---------- Shared audio engine ---------- */
+let actx=null, masterMusicGain=null;
+let music=true, musicStarted=false, musicHandle=null, filterNode=null;
+const scale=[220,246.94,261.63,293.66,329.63,392.00,440,493.88];
+
+function ensureCtx(){
+  if(!actx){
+    actx=new (window.AudioContext||window.webkitAudioContext)();
+    masterMusicGain=actx.createGain();
+    masterMusicGain.gain.value=music?0.18:0;
+    masterMusicGain.connect(actx.destination);
+  }
+  if(actx.state==='suspended') actx.resume();
+  return actx;
+}
+
 const audio=(freq=440,dur=.08,type='sine')=>{
   if(!sound)return;
   try{
-    const ctx=new(window.AudioContext||window.webkitAudioContext)(),o=ctx.createOscillator(),g=ctx.createGain();
-    o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(.06,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+dur);
-    o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+dur);o.onended=()=>ctx.close();
+    const ctx=ensureCtx();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type;o.frequency.value=freq;
+    g.gain.setValueAtTime(.06,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime+dur);
+    duckMusic();
   }catch(e){}
 };
+
+function duckMusic(){
+  if(!musicStarted||!actx) return;
+  const now=actx.currentTime;
+  masterMusicGain.gain.cancelScheduledValues(now);
+  masterMusicGain.gain.setTargetAtTime(music?0.05:0, now, 0.05);
+  masterMusicGain.gain.setTargetAtTime(music?0.18:0, now+0.18, 0.35);
+}
+
+function intensityFactor(){
+  const fill=moveCount/CELLS;
+  const streakBoost=Math.min(streak,5)/5;
+  return Math.min(1, fill*0.7+streakBoost*0.3);
+}
+
+function startMusic(){
+  if(musicStarted) return;
+  try{
+    musicStarted=true;
+    const ctx=ensureCtx();
+    filterNode=ctx.createBiquadFilter();
+    filterNode.type='lowpass';
+    filterNode.frequency.value=900;
+    filterNode.connect(masterMusicGain);
+    const bass=ctx.createOscillator(), bassGain=ctx.createGain();
+    bass.type='sawtooth'; bass.frequency.value=55;
+    bassGain.gain.value=0.045;
+    bass.connect(bassGain); bassGain.connect(filterNode);
+    bass.start();
+    scheduleNote();
+  }catch(e){}
+}
+
+function scheduleNote(){
+  if(!musicStarted) return;
+  playArpNote();
+  const t=intensityFactor();
+  const delay=340-t*160;
+  musicHandle=setTimeout(scheduleNote, delay);
+}
+
+function playArpNote(){
+  if(!filterNode) return;
+  try{
+    const ctx=ensureCtx();
+    const t=intensityFactor();
+    const idx=Math.floor(Math.random()*scale.length);
+    const freq=scale[idx]*(Math.random()<0.12?2:1);
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0,ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.08+t*0.05, ctx.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+0.22);
+    o.connect(g); g.connect(filterNode);
+    o.start(); o.stop(ctx.currentTime+0.25);
+    filterNode.frequency.setTargetAtTime(650+t*2600, ctx.currentTime, 0.5);
+  }catch(e){}
+}
+/* ------------------------------------------ */
 
 function spawnParticles(x,y,color){
   for(let i=0;i<14;i++){
@@ -73,6 +154,7 @@ function render(){
   document.getElementById('px').classList.toggle('active',turn==='X'&&!over);
   document.getElementById('po').classList.toggle('active',turn==='O'&&!over);
   document.getElementById('streakStat').classList.toggle('hot',streak>=3);
+  boardEl.classList.toggle('tense', !over && (moveCount/CELLS)>0.65);
   const streakB=document.getElementById('streak');
   const existingFlame=streakB.parentElement.querySelector('.flame');
   if(streak>=3 && !existingFlame){ const f=document.createElement('span'); f.className='flame'; f.textContent='🔥'; streakB.after(f); }
@@ -153,6 +235,7 @@ function chooseCPU(){
 
 function play(i){
   if(over||board[i])return;
+  startMusic();
   board[i]=turn;
   moveCount++;
   audio(turn==='X'?540:330,.09,'triangle');
@@ -192,6 +275,8 @@ function finish(mark,line){
       const r=cellEl.getBoundingClientRect();
       spawnParticles(r.left+r.width/2, r.top+r.height/2, mark==='X'?'#4df7ff':mark==='O'?'#ff3d81':'#a7b1d4');
     });
+    const shakeAmt=Math.min(3,1+streak*0.4);
+    arenaPanel.style.setProperty('--shakeAmt', shakeAmt);
     arenaPanel.classList.remove('shake'); void arenaPanel.offsetWidth; arenaPanel.classList.add('shake');
   }
   updateScores(); persist();
@@ -229,12 +314,18 @@ function newRound(){
 
 function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1800); }
 
-document.getElementById('newRound').onclick=()=>{ round++; newRound(); showToast('NEW ROUND — MAKE YOUR MOVE'); audio(600,.1); };
-document.getElementById('next').onclick=()=>{ round++; newRound(); audio(600,.1); };
-document.getElementById('reset').onclick=()=>{ scores={X:0,O:0,D:0}; streak=0; bestStreak=0; updateScores(); persist(); newRound(); showToast('SCORE MATRIX RESET'); };
-document.getElementById('soundBtn').onclick=()=>{ sound=!sound; document.getElementById('soundBtn').textContent='♫ SOUND: '+(sound?'ON':'OFF'); if(sound)audio(600,.1); };
-modeEl.onchange=()=>{ newRound(); showToast(modeEl.value==='cpu'?'MACHINE OPPONENT ONLINE':'LOCAL DUEL READY'); };
-diffEl.onchange=()=>showToast('THREAT LEVEL: '+diffEl.options[diffEl.selectedIndex].text);
+document.getElementById('newRound').onclick=()=>{ startMusic(); round++; newRound(); showToast('NEW ROUND — MAKE YOUR MOVE'); audio(600,.1); };
+document.getElementById('next').onclick=()=>{ startMusic(); round++; newRound(); audio(600,.1); };
+document.getElementById('reset').onclick=()=>{ startMusic(); scores={X:0,O:0,D:0}; streak=0; bestStreak=0; updateScores(); persist(); newRound(); showToast('SCORE MATRIX RESET'); };
+soundBtn.onclick=()=>{ startMusic(); sound=!sound; soundBtn.textContent='♫ SOUND: '+(sound?'ON':'OFF'); if(sound)audio(600,.1); };
+musicBtn.onclick=()=>{
+  startMusic();
+  music=!music;
+  musicBtn.textContent='🎵 MUSIC: '+(music?'ON':'OFF');
+  if(actx) masterMusicGain.gain.setTargetAtTime(music?0.18:0, actx.currentTime, 0.2);
+};
+modeEl.onchange=()=>{ startMusic(); newRound(); showToast(modeEl.value==='cpu'?'MACHINE OPPONENT ONLINE':'LOCAL DUEL READY'); };
+diffEl.onchange=()=>{ startMusic(); showToast('THREAT LEVEL: '+diffEl.options[diffEl.selectedIndex].text); };
 
 function tick(){
   const sec=Math.floor((Date.now()-startedAt)/1000);
